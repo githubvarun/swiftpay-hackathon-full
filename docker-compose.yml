@@ -1,0 +1,63 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: swiftpay-postgres
+    environment:
+      POSTGRES_DB: swiftpay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+
+  kafka:
+    image: apache/kafka:latest
+    container_name: swiftpay-kafka
+
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+    ports:
+      - "9092:9092"
+
+  transaction-gateway:
+    image: transaction-gateway:1.0
+    container_name: transaction-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+
+  ledger-service:
+    image: ledger-service:1.0
+    container_name: ledger-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+
+  redis:
+    image: redis:7
+    container_name: swiftpay-redis
+    ports:
+      - "6379:6379"
+
+
+
+volumes:
+  postgres-data:
+
