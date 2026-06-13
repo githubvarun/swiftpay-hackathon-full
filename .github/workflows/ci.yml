@@ -4,12 +4,10 @@ on:
   push:
     branches:
       - main
-      - master
 
   pull_request:
     branches:
       - main
-      - master
 
 jobs:
 
@@ -32,11 +30,14 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Run Tests And Coverage Check
+      - name: Run Tests and Coverage
         run: mvn clean verify
 
-      - name: Build Application
+      - name: Package Application
         run: mvn clean package -DskipTests
+
+      - name: Build Docker Image
+        run: docker build -t transaction-gateway:1.0 .
 
   ledger-service:
 
@@ -57,8 +58,11 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Run Tests And Coverage Check
+      - name: Run Tests and Coverage
         run: mvn clean verify
 
-      - name: Build Application
+      - name: Package Application
         run: mvn clean package -DskipTests
+
+      - name: Build Docker Image
+        run: docker build -t ledger-service:1.0 .
