@@ -20,11 +20,6 @@ Key capabilities include:
 * High unit test coverage using JUnit and Mockito
 
 ---
-
-# System Architecture
-
-![Architecture Diagram](docs/architecture-diagram.png)
-
 ## Architecture Flow
 
 1. Client sends payment request to Transaction Gateway.
