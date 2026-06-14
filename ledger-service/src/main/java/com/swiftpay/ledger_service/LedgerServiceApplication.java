@@ -7,7 +7,7 @@ import org.springframework.kafka.annotation.EnableKafkaRetryTopic;
 import java.util.TimeZone;
 
 @SpringBootApplication
-//@EnableKafkaRetryTopic
+@EnableKafkaRetryTopic
 public class LedgerServiceApplication {
 
 	public static void main(String[] args) {

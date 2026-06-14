@@ -4,19 +4,18 @@ import com.swiftpay.transaction_gateway.constants.TransactionConstants;
 import com.swiftpay.transaction_gateway.dto.PaymentEvent;
 import com.swiftpay.transaction_gateway.dto.PaymentRequest;
 import com.swiftpay.transaction_gateway.dto.PaymentResponse;
-import com.swiftpay.transaction_gateway.entity.Account;
 import com.swiftpay.transaction_gateway.entity.PaymentTransaction;
 import com.swiftpay.transaction_gateway.entity.TransactionStatus;
 import com.swiftpay.transaction_gateway.exception.DuplicatePaymentException;
 import com.swiftpay.transaction_gateway.exception.InsufficientBalanceException;
 import com.swiftpay.transaction_gateway.exception.TransactionNotFoundException;
 import com.swiftpay.transaction_gateway.producer.PaymentEventProducer;
-import com.swiftpay.transaction_gateway.repository.AccountRepository;
 import com.swiftpay.transaction_gateway.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +28,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentEventProducer producer;
     private final StringRedisTemplate redisTemplate;
     private final PaymentTransactionRepository paymentTransactionRepository;
-    private final AccountRepository accountRepository;
 
     @Override
     public PaymentResponse createPayment(PaymentRequest request) {
@@ -47,26 +45,6 @@ public class PaymentServiceImpl implements PaymentService {
                     TransactionConstants.DUPLICATE_PAYMENT_MESSAGE
             );
         }
-
-
-        Account sender =
-                accountRepository.findByUserId(
-                                request.getSenderId()
-                        )
-                        .orElseThrow(
-                                () -> new RuntimeException(
-                                        "Sender not found"
-                                )
-                        );
-
-        if(sender.getBalance().compareTo(
-                request.getAmount()) < 0) {
-
-            throw new InsufficientBalanceException(
-                    TransactionConstants.INSUFFICIENT_BALANCE
-            );
-        }
-
 
 
         redisTemplate.opsForValue()

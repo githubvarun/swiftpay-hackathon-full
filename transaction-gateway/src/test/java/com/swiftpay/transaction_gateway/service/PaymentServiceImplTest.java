@@ -1,32 +1,31 @@
 package com.swiftpay.transaction_gateway.service;
 
+import com.swiftpay.transaction_gateway.constants.TransactionConstants;
 import com.swiftpay.transaction_gateway.dto.PaymentRequest;
 import com.swiftpay.transaction_gateway.dto.PaymentResponse;
-import com.swiftpay.transaction_gateway.entity.Account;
 import com.swiftpay.transaction_gateway.entity.PaymentTransaction;
 import com.swiftpay.transaction_gateway.exception.DuplicatePaymentException;
-import com.swiftpay.transaction_gateway.exception.InsufficientBalanceException;
 import com.swiftpay.transaction_gateway.exception.TransactionNotFoundException;
 import com.swiftpay.transaction_gateway.producer.PaymentEventProducer;
-import com.swiftpay.transaction_gateway.repository.AccountRepository;
 import com.swiftpay.transaction_gateway.repository.PaymentTransactionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.http.MediaType;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceImplTest {
@@ -38,31 +37,29 @@ class PaymentServiceImplTest {
     private StringRedisTemplate redisTemplate;
 
     @Mock
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Mock
     private ValueOperations<String, String> valueOperations;
 
-    @Mock
-    private PaymentTransactionRepository repository;
-
-    @Mock
-    private AccountRepository accountRepository;
-
     @InjectMocks
-    private PaymentServiceImpl service;
+    private PaymentServiceImpl paymentService;
+
+    private PaymentRequest request;
+
+    @BeforeEach
+    void setUp() {
+
+        request = PaymentRequest.builder()
+                .senderId(1L)
+                .receiverId(2L)
+                .amount(BigDecimal.valueOf(100))
+                .currency("INR")
+                .build();
+    }
 
     @Test
-    void createPayment_shouldSucceed() {
-
-        PaymentRequest request = new PaymentRequest();
-        request.setSenderId(1L);
-        request.setReceiverId(2L);
-        request.setAmount(BigDecimal.valueOf(100));
-        request.setCurrency("INR");
-
-        Account account =
-                Account.builder()
-                        .userId(1L)
-                        .balance(BigDecimal.valueOf(10000))
-                        .build();
+    void shouldCreatePaymentSuccessfully() {
 
         when(redisTemplate.hasKey(anyString()))
                 .thenReturn(false);
@@ -70,106 +67,112 @@ class PaymentServiceImplTest {
         when(redisTemplate.opsForValue())
                 .thenReturn(valueOperations);
 
-        when(accountRepository.findByUserId(1L))
-                .thenReturn(Optional.of(account));
+        ArgumentCaptor<PaymentTransaction> captor =
+                ArgumentCaptor.forClass(PaymentTransaction.class);
 
         PaymentResponse response =
-                service.createPayment(request);
+                paymentService.createPayment(request);
 
+        verify(redisTemplate)
+                .hasKey("1-2-100");
+
+        verify(valueOperations)
+                .set(
+                        eq("1-2-100"),
+                        eq(TransactionConstants.PROCESSED),
+                        eq(Duration.ofHours(24))
+                );
+
+        verify(paymentTransactionRepository)
+                .save(captor.capture());
+
+        verify(producer)
+                .publish(any());
+
+        assertNotNull(response);
         assertEquals("PENDING", response.getStatus());
-
-        verify(repository).save(any());
+        assertEquals(
+                TransactionConstants.PAYMENT_ACCEPTED,
+                response.getMessage()
+        );
     }
 
     @Test
-    void createPayment_shouldThrowDuplicatePaymentException() {
-
-        PaymentRequest request = new PaymentRequest();
-        request.setSenderId(1L);
-        request.setReceiverId(2L);
-        request.setAmount(BigDecimal.valueOf(100));
-        request.setCurrency("INR");
+    void shouldThrowDuplicatePaymentException() {
 
         when(redisTemplate.hasKey(anyString()))
                 .thenReturn(true);
 
-        assertThrows(
-                DuplicatePaymentException.class,
-                () -> service.createPayment(request)
+        DuplicatePaymentException exception =
+                assertThrows(
+                        DuplicatePaymentException.class,
+                        () -> paymentService.createPayment(request)
+                );
+
+        assertEquals(
+                TransactionConstants.DUPLICATE_PAYMENT_MESSAGE,
+                exception.getMessage()
         );
+
+        verify(paymentTransactionRepository, never())
+                .save(any());
+
+        verify(producer, never())
+                .publish(any());
     }
 
     @Test
-    void createPayment_shouldThrowInsufficientBalanceException() {
+    void shouldReturnPaymentById() {
 
-        PaymentRequest request = new PaymentRequest();
-        request.setSenderId(1L);
-        request.setReceiverId(2L);
-        request.setAmount(BigDecimal.valueOf(5000));
-        request.setCurrency("INR");
-
-        Account account =
-                Account.builder()
-                        .userId(1L)
-                        .balance(BigDecimal.valueOf(100))
-                        .build();
-
-        when(redisTemplate.hasKey(anyString()))
-                .thenReturn(false);
-
-        when(accountRepository.findByUserId(1L))
-                .thenReturn(Optional.of(account));
-
-        assertThrows(
-                InsufficientBalanceException.class,
-                () -> service.createPayment(request)
-        );
-    }
-
-    @Test
-    void getPaymentById_shouldReturnTransaction() {
-
-        UUID id = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
 
         PaymentTransaction transaction =
                 PaymentTransaction.builder()
-                        .transactionId(id)
+                        .transactionId(transactionId)
                         .build();
 
-        when(repository.findById(id))
+        when(paymentTransactionRepository.findById(transactionId))
                 .thenReturn(Optional.of(transaction));
 
         PaymentTransaction result =
-                service.getPaymentById(id);
+                paymentService.getPaymentById(transactionId);
 
-        assertEquals(id, result.getTransactionId());
+        assertNotNull(result);
+        assertEquals(transactionId, result.getTransactionId());
     }
 
     @Test
-    void getPaymentById_shouldThrowException() {
+    void shouldThrowTransactionNotFoundException() {
 
-        UUID id = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
 
-        when(repository.findById(id))
+        when(paymentTransactionRepository.findById(transactionId))
                 .thenReturn(Optional.empty());
 
         assertThrows(
                 TransactionNotFoundException.class,
-                () -> service.getPaymentById(id)
+                () -> paymentService.getPaymentById(transactionId)
         );
     }
 
     @Test
-    void getAllPayments_shouldReturnList() {
+    void shouldReturnAllPayments() {
 
-        when(repository.findAll())
-                .thenReturn(List.of(
+        List<PaymentTransaction> transactions =
+                List.of(
+                        PaymentTransaction.builder().build(),
                         PaymentTransaction.builder().build()
-                ));
+                );
+
+        when(paymentTransactionRepository.findAll())
+                .thenReturn(transactions);
 
         List<PaymentTransaction> result =
-                service.getAllPayments();
+                paymentService.getAllPayments();
 
-        assertEquals(1, result.size());
+        assertEquals(2, result.size());
+
+        verify(paymentTransactionRepository)
+                .findAll();
     }
 }

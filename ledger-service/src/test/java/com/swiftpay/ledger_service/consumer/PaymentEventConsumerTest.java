@@ -8,6 +8,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.UUID;
+
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -17,17 +19,37 @@ class PaymentEventConsumerTest {
     private LedgerProcessingService ledgerProcessingService;
 
     @InjectMocks
-    private PaymentEventConsumer consumer;
+    private PaymentEventConsumer paymentEventConsumer;
 
     @Test
-    void consume_shouldCallLedgerProcessingService() {
+    void shouldConsumePaymentEvent() {
 
-        PaymentEvent event =
-                PaymentEvent.builder().build();
+        PaymentEvent event = PaymentEvent.builder()
+                .transactionId(UUID.randomUUID())
+                .senderId(1L)
+                .receiverId(2L)
+                .build();
 
-        consumer.consume(event);
+        paymentEventConsumer.consume(
+                event,
+                "payment-topic"
+        );
 
         verify(ledgerProcessingService)
                 .processPayment(event);
+    }
+
+    @Test
+    void shouldHandleDltMessage() {
+
+        PaymentEvent event = PaymentEvent.builder()
+                .transactionId(UUID.randomUUID())
+                .senderId(1L)
+                .receiverId(2L)
+                .build();
+
+        paymentEventConsumer.dltHandler(event);
+
+        verifyNoInteractions(ledgerProcessingService);
     }
 }

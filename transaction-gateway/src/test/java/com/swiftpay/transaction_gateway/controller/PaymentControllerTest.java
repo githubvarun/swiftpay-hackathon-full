@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,58 +25,76 @@ class PaymentControllerTest {
     private PaymentService paymentService;
 
     @InjectMocks
-    private PaymentController controller;
+    private PaymentController paymentController;
 
     @Test
-    void createPayment_shouldReturnResponse() {
+    void shouldCreatePayment() {
 
-        PaymentRequest request = new PaymentRequest();
+        PaymentRequest request = PaymentRequest.builder()
+                .senderId(1L)
+                .receiverId(2L)
+                .amount(BigDecimal.valueOf(100))
+                .currency("INR")
+                .build();
 
-        PaymentResponse response =
-                PaymentResponse.builder()
-                        .status("PENDING")
-                        .build();
+        PaymentResponse response = PaymentResponse.builder()
+                .status("PENDING")
+                .message("Payment Accepted")
+                .build();
 
         when(paymentService.createPayment(request))
                 .thenReturn(response);
 
         ResponseEntity<PaymentResponse> result =
-                controller.createPayment(request);
+                paymentController.createPayment(request);
 
         assertEquals(200, result.getStatusCode().value());
+        assertEquals("PENDING", result.getBody().getStatus());
+
+        verify(paymentService).createPayment(request);
     }
 
     @Test
-    void getPaymentById_shouldReturnTransaction() {
+    void shouldGetPaymentById() {
 
-        UUID id = UUID.randomUUID();
+        UUID transactionId = UUID.randomUUID();
 
-        when(paymentService.getPaymentById(id))
-                .thenReturn(
-                        PaymentTransaction.builder()
-                                .transactionId(id)
-                                .build()
-                );
+        PaymentTransaction transaction =
+                PaymentTransaction.builder()
+                        .transactionId(transactionId)
+                        .build();
+
+        when(paymentService.getPaymentById(transactionId))
+                .thenReturn(transaction);
 
         ResponseEntity<PaymentTransaction> result =
-                controller.getPaymentById(id);
+                paymentController.getPaymentById(transactionId);
 
-        assertEquals(id,
+        assertEquals(200, result.getStatusCode().value());
+        assertEquals(transactionId,
                 result.getBody().getTransactionId());
+
+        verify(paymentService).getPaymentById(transactionId);
     }
 
     @Test
-    void getAllPayments_shouldReturnList() {
+    void shouldGetAllPayments() {
+
+        List<PaymentTransaction> transactions =
+                List.of(
+                        PaymentTransaction.builder().build(),
+                        PaymentTransaction.builder().build()
+                );
 
         when(paymentService.getAllPayments())
-                .thenReturn(List.of(
-                        PaymentTransaction.builder().build()
-                ));
+                .thenReturn(transactions);
 
         ResponseEntity<List<PaymentTransaction>> result =
-                controller.getAllPayments();
+                paymentController.getAllPayments();
 
-        assertEquals(1, result.getBody().size());
+        assertEquals(200, result.getStatusCode().value());
+        assertEquals(2, result.getBody().size());
+
+        verify(paymentService).getAllPayments();
     }
-
 }
