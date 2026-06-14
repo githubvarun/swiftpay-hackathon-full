@@ -2,332 +2,241 @@
 
 ## Overview
 
-SwiftPay is a distributed payment processing platform built using a microservices architecture.
+SwiftPay is an event-driven payment processing platform built using Spring Boot, Apache Kafka, PostgreSQL, Redis, Docker, and GitHub Actions.
 
-The system processes payment requests asynchronously using Apache Kafka, maintains transaction records, validates account balances, and stores ledger entries for completed transactions.
+The system demonstrates how modern payment systems process transactions asynchronously using microservices and event-driven communication patterns.
 
-The platform demonstrates modern backend engineering practices including:
+Key capabilities include:
 
-- Microservices Architecture
-- Event Driven Communication
-- Kafka Messaging
-- PostgreSQL Persistence
-- Redis Caching
-- Docker Containerization
-- CI/CD using GitHub Actions
-- API Documentation using Swagger
-- Unit Testing with JUnit 5 and Mockito
-- Code Coverage using JaCoCo
-
----
-
-## Problem Statement
-
-Traditional payment systems often suffer from:
-
-- Tight coupling between services
-- Poor scalability
-- Limited fault tolerance
-- Difficulty handling asynchronous operations
-
-SwiftPay solves these problems using event-driven architecture and independent microservices.
+* Event-driven payment processing
+* Kafka-based asynchronous communication
+* Redis-based idempotency handling
+* Retry mechanism with Dead Letter Topic (DLT)
+* Separate databases per microservice
+* Swagger/OpenAPI documentation
+* Dockerized deployment
+* CI/CD using GitHub Actions
+* Health monitoring using Spring Actuator
+* High unit test coverage using JUnit and Mockito
 
 ---
 
-## System Architecture
+# System Architecture
 
-### Components
+![Architecture Diagram](docs/architecture-diagram.png)
 
-### Transaction Gateway Service
+## Architecture Flow
 
-Responsibilities:
+1. Client sends payment request to Transaction Gateway.
+2. Transaction Gateway stores transaction as PENDING.
+3. Transaction Gateway publishes Payment Event to Kafka.
+4. Ledger Service consumes the event.
+5. Ledger Service validates balance and updates ledger.
+6. Ledger Service publishes Payment Result Event.
+7. Transaction Gateway consumes result event.
+8. Transaction status is updated to COMPLETED or FAILED.
 
-- Accept payment requests
-- Validate sender account
-- Validate available balance
-- Generate transaction record
-- Ensure idempotency using Redis
-- Publish payment event to Kafka
+---
 
-Port:
+# Architecture Highlights
 
-```text
+* Event Driven Architecture
+* Apache Kafka Messaging
+* Separate Databases per Service
+* Retry Topics and Dead Letter Topic
+* Redis Idempotency Protection
+* Swagger Documentation
+* Dockerized Deployment
+* CI/CD Automation
+* Health Monitoring
+* High Test Coverage
+
+---
+
+# Technology Stack
+
+| Technology      | Purpose                   |
+| --------------- | ------------------------- |
+| Java 21         | Programming Language      |
+| Spring Boot     | Microservices Framework   |
+| Spring Data JPA | Database Access           |
+| PostgreSQL      | Persistent Storage        |
+| Apache Kafka    | Event Streaming           |
+| Redis           | Idempotency Handling      |
+| Docker          | Containerization          |
+| Docker Compose  | Environment Orchestration |
+| Swagger/OpenAPI | API Documentation         |
+| JUnit 5         | Unit Testing              |
+| Mockito         | Mocking                   |
+| GitHub Actions  | CI/CD                     |
+
+---
+
+# Microservices
+
+## Transaction Gateway Service
+
+### Responsibilities
+
+* Accept payment requests
+* Prevent duplicate payments
+* Store payment transactions
+* Publish payment events to Kafka
+* Consume payment result events
+* Update transaction status
+
+### Port
+
 8080
-```
 
 ---
 
-### Ledger Service
+## Ledger Service
 
-Responsibilities:
+### Responsibilities
 
-- Consume payment events from Kafka
-- Validate sender and receiver accounts
-- Create ledger entries
-- Update account balances
-- Publish payment result event
+* Consume payment events
+* Validate account balances
+* Process fund transfers
+* Maintain ledger entries
+* Publish payment result events
+* Retry failed processing
 
-Port:
+### Port
 
-```text
 8081
+
+---
+
+# Event Flow
+
+```text
+Client
+  |
+  v
+Transaction Gateway
+  |
+  | Payment Event
+  v
+Kafka
+  |
+  v
+Ledger Service
+  |
+  | Payment Result Event
+  v
+Kafka
+  |
+  v
+Transaction Gateway
 ```
 
 ---
 
-### PostgreSQL
+# Kafka Topics
 
-Stores:
-
-- Accounts
-- Transactions
-- Ledger Entries
-
-Port:
-
-```text
-5432
-```
+| Topic                  | Purpose           |
+| ---------------------- | ----------------- |
+| payment-events         | Payment Requests  |
+| payment-result-events  | Payment Results   |
+| payment-events-retry-* | Retry Processing  |
+| payment-events-dlt     | Dead Letter Topic |
 
 ---
 
-### Redis
+# Resilience - Retry Mechanism
 
-Used for:
+Requirement:
 
-- Idempotency Key Validation
-- Duplicate Payment Prevention
+Retry Kafka consumers when database becomes temporarily unavailable.
 
-Port:
+Implementation:
+
+* Spring Kafka Retryable Topics
+* Exponential Backoff Strategy
+* Dead Letter Topic (DLT)
+
+Configuration:
+
+```java
+@RetryableTopic(
+        attempts = "4",
+        backoff = @Backoff(
+                delay = 5000,
+                multiplier = 2.0
+        )
+)
+```
+
+Retry Flow:
 
 ```text
-6379
+Attempt 1
+   |
+5 seconds
+   |
+Attempt 2
+   |
+10 seconds
+   |
+Attempt 3
+   |
+20 seconds
+   |
+Attempt 4
+   |
+Dead Letter Topic
 ```
+
+If the database becomes available during retry execution, the transaction is processed successfully.
 
 ---
 
-### Apache Kafka
+# API Documentation
 
-Used for asynchronous communication between services.
+## Transaction Gateway Swagger
 
-Topics:
-
-```text
-payment-events
-payment-result-events
-```
-
-Port:
-
-```text
-9092
-```
+http://localhost:8080/swagger-ui/index.html
 
 ---
 
-## Event Flow
+## Ledger Service Swagger
 
-1. Client submits payment request.
-
-2. Transaction Gateway:
-
-   - Validates request
-   - Checks sender balance
-   - Saves transaction as PENDING
-   - Publishes PaymentEvent
-
-3. Kafka receives event.
-
-4. Ledger Service consumes event.
-
-5. Ledger Service:
-
-   - Updates balances
-   - Creates ledger entry
-   - Publishes PaymentResultEvent
-
-6. Transaction Gateway consumes result event.
-
-7. Transaction status updated to:
-
-```text
-SUCCESS
-```
-
-or
-
-```text
-FAILED
-```
+http://localhost:8081/swagger-ui/index.html
 
 ---
 
-## Architecture Diagram
+# Health Check Endpoints
 
-```text
-                     ┌─────────────────┐
-                     │     Client      │
-                     └────────┬────────┘
-                              │
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Transaction Gateway     │
-                 │ (Spring Boot)           │
-                 └────────┬────────────────┘
-                          │
-              ┌───────────┼───────────┐
-              │           │           │
-              ▼           ▼           ▼
-      ┌──────────┐ ┌──────────┐ ┌──────────┐
-      │PostgreSQL│ │  Redis   │ │ Swagger  │
-      └──────────┘ └──────────┘ └──────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ Kafka Topic     │
-                 │ payment-events  │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ Ledger Service  │
-                 │ (Spring Boot)   │
-                 └────────┬────────┘
-                          │
-              ┌───────────┼───────────┐
-              │                       │
-              ▼                       ▼
-       ┌────────────┐         ┌────────────┐
-       │ PostgreSQL │         │ Kafka      │
-       │ Ledger DB  │         │ Result     │
-       └────────────┘         └─────┬──────┘
-                                    │
-                                    ▼
-                     ┌────────────────────────┐
-                     │ Transaction Gateway    │
-                     │ Result Consumer        │
-                     └────────────────────────┘
-```
+## Transaction Gateway
+
+http://localhost:8080/actuator/health
 
 ---
 
-## Technologies Used
+## Ledger Service
 
-| Technology | Version |
-|------------|----------|
-| Java | 21 |
-| Spring Boot | 3.5 |
-| PostgreSQL | 16 |
-| Redis | 7 |
-| Apache Kafka | Latest |
-| Docker | Latest |
-| JUnit 5 | Latest |
-| Mockito | Latest |
-| JaCoCo | 0.8.12 |
-| GitHub Actions | CI/CD |
-| Swagger OpenAPI | 2.8.9 |
+http://localhost:8081/actuator/health
 
 ---
 
-## Implemented Features
+# Docker Deployment
 
-### Payment Processing
-
-- Create Payment
-- Retrieve Transaction
-- Retrieve All Transactions
-
-### Ledger Management
-
-- Retrieve All Ledger Entries
-- Retrieve User Ledger History
-
-### Validation
-
-- Insufficient Balance Validation
-- Duplicate Payment Prevention
-- Transaction Not Found Handling
-
-### Idempotency
-
-Redis based idempotency key support prevents duplicate payment requests.
-
-### Event Driven Processing
-
-Kafka based communication between services.
-
-### Global Exception Handling
-
-Custom exceptions:
-
-- DuplicatePaymentException
-- TransactionNotFoundException
-- InsufficientBalanceException
-
-### API Documentation
-
-Swagger UI available for both services.
-
-### Docker Support
-
-Containerized deployment for:
-
-- Transaction Gateway
-- Ledger Service
-- PostgreSQL
-- Redis
-- Kafka
-
-### CI/CD
-
-GitHub Actions pipeline:
-
-- Build Validation
-- Test Execution
-- JaCoCo Coverage Validation
-- Maven Packaging
-
----
-
-## Test Coverage
-
-### Ledger Service
-
-```text
-92%
-```
-
-### Transaction Gateway
-
-```text
-84%
-```
-
-Coverage enforced through JaCoCo.
-
-Minimum coverage threshold:
-
-```text
-80%
-```
-
----
-
-## Running Locally
-
-### Build
+## Build Images
 
 ```bash
-mvn clean install
+docker build -t transaction-gateway:1.0 ./transaction-gateway
+
+docker build -t ledger-service:1.0 ./ledger-service
 ```
 
-### Run Containers
+## Start Complete Platform
 
 ```bash
 docker compose up -d
 ```
 
-### Stop Containers
+## Stop Platform
 
 ```bash
 docker compose down
@@ -335,53 +244,167 @@ docker compose down
 
 ---
 
-## Swagger URLs
+# Running Locally
 
-### Transaction Gateway
+## Clone Repository
 
-```text
-http://localhost:8080/swagger-ui/index.html
+```bash
+git clone <repository-url>
+
+cd swiftpay-hackathon-full
 ```
 
-### Ledger Service
+## Build Project
 
-```text
-http://localhost:8081/swagger-ui/index.html
+```bash
+mvn clean install
+```
+
+## Start Infrastructure
+
+```bash
+docker compose up -d
+```
+
+## Verify Containers
+
+```bash
+docker ps
 ```
 
 ---
 
-## CI/CD
+# Database Design
 
-GitHub Actions automatically:
+The solution follows the Database Per Service pattern.
 
-- Executes tests
-- Validates coverage
-- Builds applications
+| Service             | Database       |
+| ------------------- | -------------- |
+| Transaction Gateway | transaction_db |
+| Ledger Service      | ledger_db      |
 
-Pipeline status:
+Benefits:
+
+* Loose coupling
+* Independent scaling
+* Service autonomy
+* Better fault isolation
+
+---
+
+# Redis Idempotency
+
+Redis is used to prevent duplicate payment submissions.
+
+Generated Key:
 
 ```text
-PASSING
+senderId-receiverId-amount
+```
+
+Example:
+
+```text
+1-2-100
+```
+
+Duplicate requests are rejected before processing.
+
+---
+
+# Observability
+
+Implemented Features:
+
+* Structured Logging
+* Health Check Endpoints
+* Kafka Retry Logging
+* Dead Letter Topic Logging
+* Spring Boot Actuator
+
+---
+
+# CI/CD Pipeline
+
+GitHub Actions workflow performs:
+
+* Compile Java code
+* Execute unit tests
+* Execute integration tests
+* Build Docker images
+
+Workflow Location:
+
+```text
+.github/workflows/
 ```
 
 ---
 
-## Future Enhancements
+# Test Coverage
 
-- Dead Letter Topic (DLT)
-- Kafka Retry Mechanism
-- Prometheus Metrics
-- Grafana Dashboard
-- Kubernetes Deployment
-- Distributed Tracing
-- OAuth2 Authentication
-- Circuit Breaker using Resilience4j
+## Coverage Summary
+
+| Service             | Coverage |
+| ------------------- | -------- |
+| Transaction Gateway | 96%      |
+| Ledger Service      | 94%      |
 
 ---
 
-## Author
+## Transaction Gateway Coverage
+
+
+Coverage Achieved: 96%
+
+---
+
+## Ledger Service Coverage
+
+
+Coverage Achieved: 94%
+
+---
+
+# Sample Payment Request
+
+```json
+{
+   "senderId": 1,
+   "receiverId": 2,
+   "amount": 100,
+   "currency": "INR"
+}
+```
+
+Sample Response:
+
+```json
+{
+   "transactionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+   "status": "PENDING",
+   "message": "Payment Accepted"
+}
+```
+
+---
+
+# Future Enhancements
+
+* Kubernetes Deployment
+* Prometheus Monitoring
+* Grafana Dashboards
+* Distributed Tracing
+* API Gateway
+* Authentication & Authorization
+* Circuit Breaker Pattern
+
+---
+
+# Author
 
 Bangaru Sri Sai Varun
 
-SwiftPay Hackathon Submission
+SwiftPay – Event Driven Payment Processing Platform
+
+Hackathon Submission
