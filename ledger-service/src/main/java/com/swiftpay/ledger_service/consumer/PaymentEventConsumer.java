@@ -20,7 +20,6 @@ public class PaymentEventConsumer {
 
     private final LedgerProcessingService ledgerProcessingService;
 
-
     @RetryableTopic(
             attempts = "4",
             backoff = @Backoff(
@@ -39,10 +38,8 @@ public class PaymentEventConsumer {
                     required = false
             ) String topic) {
 
-        log.info(
-                "Received Event from topic : {}",
-                topic
-        );
+        log.info("Received Event from topic : {}", topic);
+        log.info("Processing transaction {}", event.getTransactionId());
 
         ledgerProcessingService.processPayment(event);
     }

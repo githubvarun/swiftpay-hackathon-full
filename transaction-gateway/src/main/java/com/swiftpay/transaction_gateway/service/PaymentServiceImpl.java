@@ -12,6 +12,7 @@ import com.swiftpay.transaction_gateway.exception.TransactionNotFoundException;
 import com.swiftpay.transaction_gateway.producer.PaymentEventProducer;
 import com.swiftpay.transaction_gateway.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +24,7 @@ import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentEventProducer producer;
@@ -32,12 +34,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public PaymentResponse createPayment(PaymentRequest request) {
 
-        String key =
-                request.getSenderId() +
-                        "-" +
-                        request.getReceiverId() +
-                        "-" +
-                        request.getAmount();
+        String key = request.getSenderId() + "-" + request.getReceiverId() + "-" + request.getAmount();
+
+        log.info("Received payment request from sender {} to receiver {} for amount {} {}", request.getSenderId(), request.getReceiverId(), request.getAmount(), request.getCurrency());
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
 
@@ -67,6 +66,8 @@ public class PaymentServiceImpl implements PaymentService {
 
         paymentTransactionRepository.save(transaction);
 
+        log.info("Transaction {} created with status {}", transaction.getTransactionId(), transaction.getStatus());
+
         PaymentEvent event =
                 PaymentEvent.builder()
                         .transactionId(transaction.getTransactionId())
@@ -79,6 +80,8 @@ public class PaymentServiceImpl implements PaymentService {
                         .build();
 
         producer.publish(event);
+
+        log.info("Payment event published for transaction {}", transaction.getTransactionId());
 
         return PaymentResponse.builder()
                 .transactionId(transaction.getTransactionId())
@@ -99,7 +102,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public List<PaymentTransaction> getAllPayments() {
-
+        
         return paymentTransactionRepository.findAll();
     }
 }
