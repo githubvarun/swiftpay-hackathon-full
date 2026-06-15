@@ -389,7 +389,7 @@ Tool: Apache JMeter
 Configuration:
 
 * Threads: 100
-* Ramp-Up: 1 second
+* Ramp-Up: 5 seconds
 * Loop Count: 10000
 
 Results:
