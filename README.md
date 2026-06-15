@@ -386,13 +386,13 @@ Sample Response:
 
 # Future Enhancements
 
-* Kubernetes Deployment
-* Prometheus Monitoring
-* Grafana Dashboards
-* Distributed Tracing
-* API Gateway
-* Authentication & Authorization
-* Circuit Breaker Pattern
+* Analytics Worker (Bonus Service) for real-time payment volume monitoring using Kafka event streams and OLAP analytics.
+* Kubernetes Deployment for container orchestration and scaling.
+* Prometheus Monitoring for metrics collection.
+* Grafana Dashboards for real-time observability.
+* API Gateway for centralized routing and request management.
+* Authentication & Authorization using Spring Security and JWT.
+* Circuit Breaker Pattern for improved fault tolerance and resilience.
 
 ---
 
