@@ -382,6 +382,36 @@ Sample Response:
 }
 ```
 
+## Load Testing Evidence
+
+Tool: Apache JMeter
+
+Configuration:
+
+* Threads: 100
+* Ramp-Up: 1 second
+* Loop Count: 10000
+
+Results:
+
+* Total Transactions: 1,000,000
+* Throughput: 2271 TPS
+* Error Rate: 0.02%
+
+Evidence Included:
+
+* JMeter Test Plan (`jmeter-1m-load-test.jmx`)
+* JMeter Execution Screenshots
+* Wireshark PCAP Capture Screenshot
+
+PCAP Trace:
+
+* File Name: `swiftpay_1M_transactions.pcapng`
+* Size: ~901 MB
+* Due to GitHub file size limitations, the complete PCAP trace is available at:
+
+[Google Drive Link Here] - https://drive.google.com/file/d/1Vdk4zr5LQlEe6il9E4_iLQ8t_aBqh-Fn/view?usp=drivesdk
+
 ---
 
 # Future Enhancements
@@ -395,9 +425,7 @@ Sample Response:
 * Circuit Breaker Pattern for improved fault tolerance and resilience.
 
 ---
-
 # Author
-
 Bangaru Sri Sai Varun
 
 SwiftPay – Event Driven Payment Processing Platform
